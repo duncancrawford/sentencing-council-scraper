@@ -2,11 +2,11 @@
 
 BASE_URL = "https://www.sentencingcouncil.org.uk"
 
-# Starting pages that list all offence guidelines
+# Index pages — offence data is embedded as JSON in a <script> tag
+# inside tab-panel-0 on each of these pages.
 INDEX_URLS = {
-    "magistrates": f"{BASE_URL}/offences/magistrates-court/",
-    "crown_court": f"{BASE_URL}/offences/crown-court/",
-    "all_offences": f"{BASE_URL}/offences/",
+    "magistrates": f"{BASE_URL}/guidelines/magistrates/",
+    "crown_court": f"{BASE_URL}/guidelines/crown-court/",
 }
 
 # Request settings

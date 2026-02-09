@@ -1,8 +1,16 @@
-"""Web crawler for discovering sentencing guideline pages."""
+"""Web crawler for discovering sentencing guideline pages.
 
+The Sentencing Council website embeds offence data as a JavaScript JSON
+array (`var guidelineData = [...]`) inside a <script> tag within
+tab-panel-0. This crawler extracts that JSON to discover all guideline
+URLs, then fetches each guideline page individually.
+"""
+
+import json
+import re
 import time
 import logging
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
@@ -70,152 +78,137 @@ class SentencingCrawler:
         response = self._polite_get(url)
         return BeautifulSoup(response.text, "lxml")
 
-    def discover_offences_from_index(self, url: str, court_type: str) -> list[OffenceLink]:
-        """Discover offence guideline links from an index/listing page."""
+    def _extract_guideline_data_json(self, soup: BeautifulSoup) -> list[dict]:
+        """Extract the guidelineData JSON array from the embedded <script> tag.
+
+        The page contains a script like:
+            var guidelineData = [{"id":"1974","name":"Abstracting electricity",...}, ...]
+
+        This is inside the tab-panel-0 div. The JSON contains nested arrays
+        (e.g. "courtType":["Crown","Magistrates"]) so we can't use a simple
+        regex to match brackets — instead we find the start of the assignment
+        and let json.loads handle the parsing.
+        """
+        for script in soup.find_all("script"):
+            text = script.string or script.get_text() or ""
+            # Find the assignment
+            match = re.search(r"var\s+guidelineData\s*=\s*", text)
+            if not match:
+                continue
+
+            # Everything after "var guidelineData = " is the JSON array
+            json_str = text[match.end():].strip().rstrip(";").strip()
+
+            if not json_str.startswith("["):
+                logger.warning("guidelineData found but doesn't start with '['")
+                continue
+
+            try:
+                data = json.loads(json_str)
+                logger.info(f"Extracted {len(data)} offences from guidelineData JSON")
+                return data
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse guidelineData JSON: {e}")
+                # Try to recover by finding the last complete object
+                last_brace = json_str.rfind("}")
+                if last_brace > 0:
+                    truncated = json_str[: last_brace + 1] + "]"
+                    try:
+                        data = json.loads(truncated)
+                        logger.info(
+                            f"Extracted {len(data)} offences (truncated recovery)"
+                        )
+                        return data
+                    except json.JSONDecodeError:
+                        pass
+
+        logger.warning("No guidelineData JSON found in page")
+        return []
+
+    def discover_offences_from_index(
+        self, url: str, court_type: str
+    ) -> list[OffenceLink]:
+        """Discover offence guideline links from an index page.
+
+        Extracts the embedded guidelineData JSON, plus any HTML links
+        from the overarching guidelines tab (tab-panel-1).
+        """
         soup = self.get_soup(url)
         links = []
-        current_category = ""
 
-        # The offences page typically groups offences under category headings.
-        # We try multiple strategies to find offence links.
+        # Primary: extract from the guidelineData JSON in tab-panel-0
+        guideline_data = self._extract_guideline_data_json(soup)
 
-        # Strategy 1: Look for links within the main content area
-        main_content = (
-            soup.find("main")
-            or soup.find("div", class_="main-content")
-            or soup.find("article")
-            or soup.find("div", id="content")
-            or soup
-        )
+        for item in guideline_data:
+            name = item.get("name", "")
+            item_url = item.get("url", "")
 
-        # Try to find offence links — these typically point to /offences/ paths
-        for link in main_content.find_all("a", href=True):
-            href = link["href"]
-            full_url = urljoin(url, href)
-            parsed = urlparse(full_url)
-
-            # Filter for guideline/offence pages
-            if not parsed.netloc.endswith("sentencingcouncil.org.uk"):
+            if not name or not item_url:
                 continue
 
-            path = parsed.path.rstrip("/")
+            full_url = urljoin(url, item_url)
 
-            # Offence detail pages typically match patterns like:
-            # /offences/magistrates-court/item/common-assault/
-            # /offences/crown-court/item/murder/
-            is_offence_page = (
-                "/item/" in path
-                or (
-                    "/offences/" in path
-                    and path.count("/") >= 4
-                    and path not in ("/offences/magistrates-court", "/offences/crown-court")
-                )
-            )
+            # Determine court type from the item data
+            court_types = item.get("courtType", [])
+            if isinstance(court_types, list):
+                item_court = ", ".join(court_types)
+            else:
+                item_court = str(court_types)
 
-            if not is_offence_page:
-                # Check if this is a category heading
-                parent = link.find_parent(["h2", "h3", "h4"])
-                if parent:
-                    current_category = link.get_text(strip=True)
-                continue
-
-            name = link.get_text(strip=True)
-            if not name:
-                continue
-
-            # Try to determine category from surrounding context
-            category = current_category
-            heading = link.find_previous(["h2", "h3"])
-            if heading:
-                category = heading.get_text(strip=True)
+            # Get the category from relevantCollections
+            category = ""
+            collections = item.get("relevantCollections", [])
+            if collections and isinstance(collections, list):
+                category = collections[0].get("name", "")
 
             offence = OffenceLink(
                 name=name,
                 url=full_url,
-                court_type=court_type,
+                court_type=item_court or court_type,
                 category=category,
             )
+            links.append(offence)
 
-            # Avoid duplicates
-            if not any(l.url == offence.url for l in links):
-                links.append(offence)
+        # Secondary: also grab overarching guidelines from tab-panel-1
+        panel_1 = soup.find(id="tab-panel-1")
+        if panel_1:
+            for a_tag in panel_1.find_all("a", href=True):
+                href = a_tag["href"]
+                full_url = urljoin(url, href)
+                name = a_tag.get_text(strip=True)
+                if name and "/guidelines/" in href:
+                    offence = OffenceLink(
+                        name=name,
+                        url=full_url,
+                        court_type=court_type,
+                        category="Overarching guidelines",
+                    )
+                    if not any(l.url == offence.url for l in links):
+                        links.append(offence)
 
-        logger.info(f"Found {len(links)} offence links on {url}")
+        logger.info(f"Found {len(links)} guideline links on {url}")
         return links
 
     def discover_all_offences(self) -> list[OffenceLink]:
-        """Discover all offence guidelines from all index pages."""
+        """Discover all offence guidelines from all index pages.
+
+        Fetches both the magistrates' and Crown Court index pages,
+        deduplicates by URL, and returns a combined list.
+        """
         all_links = []
         seen_urls = set()
 
-        # First try the main offences page which lists everything
-        try:
-            main_links = self.discover_offences_from_index(
-                INDEX_URLS["all_offences"], "all"
-            )
-            for link in main_links:
-                if link.url not in seen_urls:
-                    seen_urls.add(link.url)
-                    all_links.append(link)
-        except Exception as e:
-            logger.warning(f"Failed to crawl main offences page: {e}")
-
-        # Then crawl the court-specific pages for any we missed
         for court_type, url in INDEX_URLS.items():
-            if court_type == "all_offences":
-                continue
             try:
                 links = self.discover_offences_from_index(url, court_type)
                 for link in links:
                     if link.url not in seen_urls:
                         seen_urls.add(link.url)
                         all_links.append(link)
+                    else:
+                        logger.debug(f"Duplicate URL skipped: {link.url}")
             except Exception as e:
-                logger.warning(f"Failed to crawl {court_type} page: {e}")
+                logger.error(f"Failed to crawl {court_type} page ({url}): {e}")
 
-        # If the index pages didn't work well, try a sitemap approach
-        if len(all_links) < 5:
-            logger.info(
-                "Few links found via index pages, trying alternative discovery..."
-            )
-            alt_links = self._discover_via_search_page(all_links, seen_urls)
-            all_links.extend(alt_links)
-
-        logger.info(f"Total offences discovered: {len(all_links)}")
+        logger.info(f"Total unique offences discovered: {len(all_links)}")
         return all_links
-
-    def _discover_via_search_page(
-        self, existing: list, seen_urls: set
-    ) -> list[OffenceLink]:
-        """Alternative discovery by crawling the site more broadly."""
-        extra = []
-
-        # Try crawling the main guidelines pages
-        for court_type in ("magistrates", "crown-court"):
-            url = f"{BASE_URL}/guidelines/{court_type}/"
-            try:
-                soup = self.get_soup(url)
-                for link in soup.find_all("a", href=True):
-                    href = link["href"]
-                    full_url = urljoin(url, href)
-
-                    if full_url in seen_urls:
-                        continue
-                    if "sentencingcouncil.org.uk" not in full_url:
-                        continue
-                    if "/item/" not in full_url and "/offences/" not in full_url:
-                        continue
-
-                    name = link.get_text(strip=True)
-                    if name:
-                        offence = OffenceLink(
-                            name=name,
-                            url=full_url,
-                            court_type=court_type.replace("-", "_"),
-                        )
-                        seen_urls.add(full_url)
-                        extra.append(offence)
-            except Exception as e:
-                logger.warning(f"Alternative discovery failed for {url}: {e}")
-
-        return extra
