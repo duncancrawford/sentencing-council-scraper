@@ -66,6 +66,34 @@ class Guideline:
 
 
 @dataclass
+class SupplementarySection:
+    """A section within a supplementary information page."""
+
+    heading: str
+    level: str  # e.g. "h2", "h3"
+    text: str
+    bullets: list[str] = field(default_factory=list)
+    tables: list[list[list[str]]] = field(default_factory=list)
+
+
+@dataclass
+class SupplementaryPage:
+    """A supplementary information page with structured sections."""
+
+    page_title: str
+    url: str
+    court_type: str
+    sections: list[SupplementarySection] = field(default_factory=list)
+    page_type: str = "supplementary"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+
+
+@dataclass
 class OffenceLink:
     """A link to an offence guideline found on the index page."""
 

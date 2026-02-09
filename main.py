@@ -26,6 +26,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
 from scraper.crawler import SentencingCrawler
 from scraper.parser import GuidelineParser
+from scraper.supplementary_parser import SupplementaryParser
 from scraper.models import Guideline
 from scraper.export import (
     export_json,
@@ -47,10 +48,13 @@ def setup_logging(verbose: bool = False):
     )
 
 
-def scrape_single_url(url: str, court_type: str = "") -> Guideline:
-    """Scrape a single guideline page."""
+def scrape_single_url(url: str, court_type: str = ""):
+    """Scrape a single guideline or supplementary page."""
     crawler = SentencingCrawler()
     soup = crawler.get_soup(url)
+    if "/supplementary-information/" in url:
+        parser = SupplementaryParser(soup, url, court_type)
+        return parser.parse()
     parser = GuidelineParser(soup, url, court_type)
     return parser.parse()
 
@@ -122,6 +126,7 @@ def scrape_all(
     console.print(f"\n[bold blue]Step 2:[/] Scraping {len(offences)} guideline pages...\n")
 
     guidelines = []
+    supplementary_pages = []
     errors = []
 
     with Progress(
@@ -137,9 +142,13 @@ def scrape_all(
             try:
                 progress.update(task, description=f"Scraping: {offence.name[:50]}")
                 soup = crawler.get_soup(offence.url)
-                parser = GuidelineParser(soup, offence.url, offence.court_type)
-                guideline = parser.parse()
-                guidelines.append(guideline)
+                if offence.source_tab == "Supplementary information" or "/supplementary-information/" in offence.url:
+                    parser = SupplementaryParser(soup, offence.url, offence.court_type)
+                    supplementary_pages.append(parser.parse())
+                else:
+                    parser = GuidelineParser(soup, offence.url, offence.court_type)
+                    guideline = parser.parse()
+                    guidelines.append(guideline)
             except Exception as e:
                 errors.append({"offence": offence.name, "url": offence.url, "error": str(e)})
                 logging.getLogger(__name__).warning(f"Failed to scrape {offence.name}: {e}")
@@ -163,11 +172,16 @@ def scrape_all(
     export_individual_json(guidelines, f"{output_dir}/guidelines")
     export_csv_summary(guidelines, f"{output_dir}/sentencing_ranges.csv")
     export_offence_index(guidelines, f"{output_dir}/offence_index.json")
+    if supplementary_pages:
+        export_json(supplementary_pages, f"{output_dir}/supplementary.json")
+        export_individual_json(supplementary_pages, f"{output_dir}/supplementary")
 
     # Summary
     console.print(f"\n[bold green]Done![/]")
     console.print(f"  Successfully scraped: {len(guidelines)} guidelines")
-    console.print(f"  Failed: {len(errors)} guidelines")
+    if supplementary_pages:
+        console.print(f"  Supplementary pages: {len(supplementary_pages)}")
+    console.print(f"  Failed: {len(errors)} pages")
     console.print(f"  Output directory: {output_dir}/")
 
     if errors:
@@ -244,10 +258,16 @@ def main():
             f.write(guideline.to_json())
 
         console.print(f"\n[green]Saved to {output_path}[/]")
-        console.print(f"  Offence: {guideline.offence_name}")
-        console.print(f"  Sentencing ranges: {len(guideline.sentencing_ranges)}")
-        console.print(f"  Aggravating factors: {len(guideline.aggravating_factors)}")
-        console.print(f"  Mitigating factors: {len(guideline.mitigating_factors)}")
+        if hasattr(guideline, "offence_name"):
+            console.print(f"  Offence: {guideline.offence_name}")
+            console.print(f"  Sentencing ranges: {len(guideline.sentencing_ranges)}")
+            console.print(f"  Aggravating factors: {len(guideline.aggravating_factors)}")
+            console.print(f"  Mitigating factors: {len(guideline.mitigating_factors)}")
+        else:
+            title = getattr(guideline, "page_title", "Supplementary information")
+            sections = getattr(guideline, "sections", [])
+            console.print(f"  Page: {title}")
+            console.print(f"  Sections: {len(sections)}")
     else:
         # Full scrape mode
         court_filter = "" if args.court == "all" else args.court
