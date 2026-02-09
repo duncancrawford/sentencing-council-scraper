@@ -60,6 +60,7 @@ def scrape_all(
     output_dir: str = OUTPUT_DIR,
     list_only: bool = False,
     delay: float = 1.0,
+    limit: int = 0,
 ) -> list[Guideline]:
     """Scrape all guidelines from the Sentencing Council website."""
     crawler = SentencingCrawler(delay=delay)
@@ -101,6 +102,10 @@ def scrape_all(
 
     if list_only:
         return []
+
+    if limit and limit > 0:
+        offences = offences[:limit]
+        console.print(f"[yellow]Limiting to first {len(offences)} offences.[/]")
 
     # Step 2: Scrape each guideline page
     console.print(f"\n[bold blue]Step 2:[/] Scraping {len(offences)} guideline pages...\n")
@@ -189,6 +194,12 @@ def main():
         help="Only list discovered offences, don't scrape details",
     )
     parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Limit number of offences to process (0 = no limit)",
+    )
+    parser.add_argument(
         "--output",
         default=OUTPUT_DIR,
         help=f"Output directory (default: {OUTPUT_DIR})",
@@ -234,6 +245,7 @@ def main():
             output_dir=args.output,
             list_only=args.list_only,
             delay=args.delay,
+            limit=args.limit,
         )
 
 
