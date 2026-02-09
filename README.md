@@ -1,1 +1,129 @@
-# sentencing-council-scraper
+# Sentencing Council Guideline Scraper
+
+A web crawler that extracts structured sentencing guideline data from the [UK Sentencing Council](https://www.sentencingcouncil.org.uk/) website.
+
+Built to feed data into the [sentence calculator prototype](https://github.com/TimBrittenMOJ/sentence_builder), replacing hard-coded static data with comprehensive coverage of all offence types.
+
+## What it does
+
+The scraper crawls the Sentencing Council's magistrates' court and Crown Court guideline pages and extracts:
+
+- **Offence names** and legislation references
+- **Culpability levels** (A/B/C or High/Medium/Low) with factors
+- **Harm categories** with factors
+- **Sentencing tables** — starting points and category ranges for each culpability/harm combination
+- **Aggravating factors**
+- **Mitigating factors**
+- **Additional steps** (guilty plea reduction, totality, ancillary orders, etc.)
+
+Output is JSON (one file per offence + a combined file), plus a CSV summary of all sentencing ranges.
+
+## Setup
+
+```bash
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+```
+
+## Usage
+
+```bash
+# Scrape all guidelines (magistrates + Crown Court)
+python main.py
+
+# Scrape only magistrates' court guidelines
+python main.py --court magistrates
+
+# Scrape only Crown Court guidelines
+python main.py --court crown
+
+# Just list discovered offences without scraping detail pages
+python main.py --list-only
+
+# Scrape a single guideline page
+python main.py --url https://www.sentencingcouncil.org.uk/offences/crown-court/item/assault-occasioning-actual-bodily-harm/
+
+# Custom output directory and delay between requests
+python main.py --output my_data --delay 2.0
+
+# Verbose logging
+python main.py -v
+```
+
+## Output
+
+All output goes to the `data/` directory by default:
+
+| File | Description |
+|------|-------------|
+| `guidelines.json` | All guidelines in a single JSON array |
+| `guidelines/<offence>.json` | Individual JSON file per offence |
+| `sentencing_ranges.csv` | Flat CSV of all sentencing ranges (useful for analysis) |
+| `offence_index.json` | Summary index of all offences found |
+| `errors.json` | Any offences that failed to scrape |
+
+### JSON structure
+
+Each guideline in the JSON output looks like:
+
+```json
+{
+  "offence_name": "Common assault",
+  "url": "https://www.sentencingcouncil.org.uk/offences/...",
+  "court_type": "magistrates",
+  "legislation": "Criminal Justice Act 1988, s.39",
+  "culpability_levels": [
+    {
+      "level": "A",
+      "description": "High culpability",
+      "factors": ["Use of weapon", "Targeting vulnerable victim", "..."]
+    }
+  ],
+  "harm_levels": [
+    {
+      "category": "1",
+      "description": "...",
+      "factors": ["Serious physical injury", "..."]
+    }
+  ],
+  "sentencing_ranges": [
+    {
+      "culpability": "A",
+      "harm": "Category 1",
+      "starting_point": "1 year's custody",
+      "category_range": "26 weeks' – 2 years' custody"
+    }
+  ],
+  "aggravating_factors": ["Previous convictions", "..."],
+  "mitigating_factors": ["No previous convictions", "..."],
+  "additional_steps": [],
+  "raw_sections": {}
+}
+```
+
+## Why Beautiful Soup?
+
+The Sentencing Council site serves static HTML, so a full browser automation tool (Selenium/Playwright) isn't needed. `requests` + `BeautifulSoup` with `lxml` is fast, lightweight, and sufficient.
+
+The main challenge is that the HTML structure varies between offences — some use tables for culpability/harm, others use headings and lists, and some use accordion/tab layouts. The parser uses multiple strategies with fallbacks to handle this.
+
+If the site ever moves to client-side rendering, swap in `httpx` + `playwright` — the parser layer stays the same.
+
+## Architecture
+
+```
+scraper/
+├── config.py    # URLs, headers, rate limiting settings
+├── models.py    # Dataclasses: Guideline, SentencingRange, etc.
+├── crawler.py   # Page discovery — finds all offence links
+├── parser.py    # HTML parsing — extracts structured data
+└── export.py    # JSON/CSV output
+main.py          # CLI entry point
+```
+
+## Notes
+
+- The scraper includes a 1-second delay between requests by default (configurable via `--delay`). Be respectful of the Sentencing Council's servers.
+- The `raw_sections` field in each guideline captures all section text as a fallback, so data isn't lost even when the structured parser can't match the HTML layout.
+- The site structure may change over time. If the scraper stops finding offences, check the index page URLs in `scraper/config.py` and the link-matching logic in `scraper/crawler.py`.
