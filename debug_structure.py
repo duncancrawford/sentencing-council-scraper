@@ -6,10 +6,8 @@ page structure so we can validate the parser.
 Run: python debug_structure.py
 """
 
-import json
-import sys
-
 from scraper.crawler import SentencingCrawler
+from scraper.parser import GuidelineParser
 
 
 def main():
@@ -45,19 +43,24 @@ def main():
     print(f"\nFetching: {test_url}")
 
     soup = crawler.get_soup(test_url)
+    parser = GuidelineParser(soup, test_url)
+    content = parser._get_main_content()
 
     # Title
-    h1 = soup.find("h1")
+    h1 = content.find("h1") or soup.find("h1")
     print(f"\nH1: {h1.get_text(strip=True) if h1 else 'N/A'}")
 
     # All headings
     print("\n--- Headings ---")
-    for h in soup.find_all(["h1", "h2", "h3", "h4"]):
-        print(f"  <{h.name}> {h.get_text(strip=True)[:100]}")
+    for h in content.find_all(["h1", "h2", "h3", "h4"]):
+        text = h.get_text(strip=True)
+        if text.lower() in ("give feedback about this page", "related content"):
+            continue
+        print(f"  <{h.name}> {text[:100]}")
 
     # Tabs / accordions / steps
     print("\n--- Tabs/Panels/Steps/Accordions ---")
-    for el in soup.find_all(
+    for el in content.find_all(
         lambda tag: any(
             kw in str(tag.get("class", "")).lower() + str(tag.get("id", "")).lower()
             for kw in ("tab", "panel", "step", "accordion")
@@ -70,7 +73,7 @@ def main():
 
     # Tables
     print("\n--- Tables ---")
-    for i, table in enumerate(soup.find_all("table")):
+    for i, table in enumerate(content.find_all("table")):
         rows = table.find_all("tr")
         print(f"\n  Table {i}: {len(rows)} rows")
         for row in rows[:5]:
@@ -82,7 +85,7 @@ def main():
 
     # Lists that might be factors
     print("\n--- Unordered lists (possible factors) ---")
-    for ul in soup.find_all("ul")[:10]:
+    for ul in content.find_all("ul")[:10]:
         prev = ul.find_previous(["h2", "h3", "h4", "strong"])
         heading = prev.get_text(strip=True)[:60] if prev else "(no heading)"
         items = ul.find_all("li")
@@ -94,9 +97,8 @@ def main():
 
     # Dump main content HTML (first 8000 chars)
     print("\n--- Main content HTML (first 8000 chars) ---")
-    main = soup.find("main") or soup.find("article") or soup.find("body")
-    if main:
-        print(main.prettify()[:8000])
+    if content:
+        print(content.prettify()[:8000])
 
 
 if __name__ == "__main__":

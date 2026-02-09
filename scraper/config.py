@@ -9,6 +9,10 @@ INDEX_URLS = {
     "crown_court": f"{BASE_URL}/guidelines/crown-court/",
 }
 
+# Fallback index pages — optional legacy list pages that expose A–Z offence links.
+# Keep empty unless you have a confirmed alternative source.
+FALLBACK_INDEX_URLS: dict[str, str] = {}
+
 # Request settings
 REQUEST_HEADERS = {
     "User-Agent": (
@@ -18,7 +22,8 @@ REQUEST_HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-GB,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    # Avoid brotli here; requests may not decode br without extra deps.
+    "Accept-Encoding": "gzip, deflate",
 }
 
 # Be polite — delay between requests in seconds

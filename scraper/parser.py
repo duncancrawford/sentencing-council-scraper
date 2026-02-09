@@ -40,10 +40,14 @@ class GuidelineParser:
 
     def parse(self) -> Guideline:
         """Parse the full guideline page."""
+        court_type = self.court_type or ""
+        parsed_court_type = self._parse_court_type()
+        if parsed_court_type:
+            court_type = parsed_court_type
         guideline = Guideline(
             offence_name=self._parse_offence_name(),
             url=self.url,
-            court_type=self.court_type,
+            court_type=court_type,
             legislation=self._parse_legislation(),
             effective_from=self._parse_effective_date(),
         )
@@ -61,17 +65,69 @@ class GuidelineParser:
 
         return guideline
 
+    def _parse_court_type(self) -> str:
+        """Infer court type from page labels."""
+        content = self._get_main_content()
+        text = " ".join(content.stripped_strings)
+        has_crown = re.search(r"\bCrown Court\b", text, re.I) is not None
+        has_mag = re.search(r"\bMagistrates?\b", text, re.I) is not None
+
+        if has_crown and has_mag:
+            return "both"
+        if has_crown:
+            return "crown_court"
+        if has_mag:
+            return "magistrates"
+        return ""
+
+    def _strip_site_chrome(self, root: Tag) -> None:
+        """Remove header/footer/navigation elements to reduce noise."""
+        for el in root.find_all(["header", "footer", "nav", "aside"]):
+            el.decompose()
+        for el in root.find_all(attrs={"role": re.compile(r"(navigation|banner|contentinfo)", re.I)}):
+            el.decompose()
+        for el in root.find_all(class_=re.compile(r"(site-)?(header|footer|nav|menu|breadcrumb)", re.I)):
+            el.decompose()
+        for heading in root.find_all(["h1", "h2", "h3", "h4"]):
+            text = heading.get_text(strip=True).lower()
+            if text in ("give feedback about this page", "related content"):
+                heading.decompose()
+        for button in root.find_all(attrs={"data-accordion-toggle": True}):
+            label = button.get_text(strip=True).lower()
+            if label == "related content":
+                container = button.find_parent()
+                if container:
+                    container.decompose()
+            if label == "applicability":
+                container = button.find_parent()
+                if container:
+                    container.decompose()
+        for toggle in root.find_all(attrs={"data-toggle-all-accordions": True}):
+            container = toggle.find_parent()
+            if container:
+                container.decompose()
+
     def _get_main_content(self) -> Tag:
         """Find the main content area of the page."""
         candidates = [
             self.soup.find("main"),
-            self.soup.find("div", class_=re.compile(r"main.?content|guideline.?content|entry.?content")),
             self.soup.find("article"),
+            self.soup.find("div", class_=re.compile(r"main.?content|guideline.?content|entry.?content")),
             self.soup.find("div", id="content"),
         ]
         for c in candidates:
             if c:
+                # Prefer the primary content column when the page uses a two-column layout.
+                primary = c.find(
+                    "div",
+                    class_=re.compile(r"\b(md|lg|xl):flex-3\b|content-area|main-content", re.I),
+                )
+                if primary:
+                    self._strip_site_chrome(primary)
+                    return primary
+                self._strip_site_chrome(c)
                 return c
+        self._strip_site_chrome(self.soup)
         return self.soup
 
     def _parse_offence_name(self) -> str:
