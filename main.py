@@ -60,6 +60,7 @@ def scrape_all(
     output_dir: str = OUTPUT_DIR,
     list_only: bool = False,
     delay: float = 1.0,
+    limit: int = 0,
 ) -> list[Guideline]:
     """Scrape all guidelines from the Sentencing Council website."""
     crawler = SentencingCrawler(delay=delay)
@@ -69,13 +70,21 @@ def scrape_all(
 
     offences = crawler.discover_all_offences()
 
-    # Filter by court type if requested
+    # Filter by court type if requested (keep unknowns for post-scrape filtering)
+    filter_after_scrape = False
     if court_filter:
-        offences = [
+        filtered = [
             o for o in offences
             if court_filter.lower() in o.court_type.lower()
-            or o.court_type == "all"
+            or o.court_type in ("all", "both")
         ]
+        unknown = [
+            o for o in offences
+            if not o.court_type or o.court_type.lower() == "unknown"
+        ]
+        if unknown:
+            filter_after_scrape = True
+        offences = filtered + unknown
 
     if not offences:
         console.print("[red]No offences found. The website structure may have changed.[/]")
@@ -93,6 +102,10 @@ def scrape_all(
 
     if list_only:
         return []
+
+    if limit and limit > 0:
+        offences = offences[:limit]
+        console.print(f"[yellow]Limiting to first {len(offences)} offences.[/]")
 
     # Step 2: Scrape each guideline page
     console.print(f"\n[bold blue]Step 2:[/] Scraping {len(offences)} guideline pages...\n")
@@ -123,6 +136,16 @@ def scrape_all(
                 progress.advance(task)
 
     # Step 3: Export results
+    if court_filter and filter_after_scrape:
+        before = len(guidelines)
+        guidelines = [
+            g for g in guidelines
+            if court_filter.lower() in g.court_type.lower()
+            or g.court_type in ("all", "both")
+        ]
+        console.print(
+            f"\n[bold blue]Step 2b:[/] Filtered after scrape: {before} → {len(guidelines)}\n"
+        )
     console.print(f"\n[bold blue]Step 3:[/] Exporting {len(guidelines)} guidelines...\n")
 
     export_json(guidelines, f"{output_dir}/guidelines.json")
@@ -171,6 +194,12 @@ def main():
         help="Only list discovered offences, don't scrape details",
     )
     parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Limit number of offences to process (0 = no limit)",
+    )
+    parser.add_argument(
         "--output",
         default=OUTPUT_DIR,
         help=f"Output directory (default: {OUTPUT_DIR})",
@@ -216,6 +245,7 @@ def main():
             output_dir=args.output,
             list_only=args.list_only,
             delay=args.delay,
+            limit=args.limit,
         )
 
 
