@@ -16,7 +16,7 @@ The scraper crawls the Sentencing Council's magistrates' court and Crown Court g
 - **Mitigating factors**
 - **Additional steps** (guilty plea reduction, totality, ancillary orders, etc.)
 
-Output is JSON (one file per offence + a combined file), plus a CSV summary of all sentencing ranges.
+Output is JSON (per offence + combined), plus a CSV summary of all sentencing ranges. Supplementary and overarching pages are exported separately, and a unified `pages.json` provides a consistent API-friendly envelope.
 
 ## Setup
 
@@ -41,6 +41,14 @@ python main.py --court crown
 # Just list discovered offences without scraping detail pages
 python main.py --list-only
 
+# Limit the number of items processed (after discovery/filtering)
+python main.py --limit 5
+
+# Limit by tab type (default: offences)
+python main.py --tab supplementary --limit 5
+python main.py --tab overarching --limit 5
+python main.py --tab all --limit 5
+
 # Scrape a single guideline page
 python main.py --url https://www.sentencingcouncil.org.uk/offences/crown-court/item/assault-occasioning-actual-bodily-harm/
 
@@ -61,6 +69,11 @@ All output goes to the `data/` directory by default:
 | `guidelines/<offence>.json` | Individual JSON file per offence |
 | `sentencing_ranges.csv` | Flat CSV of all sentencing ranges (useful for analysis) |
 | `offence_index.json` | Summary index of all offences found |
+| `supplementary.json` | Supplementary information pages (structured sections) |
+| `supplementary/<page>.json` | Individual supplementary pages |
+| `overarching.json` | Overarching guideline pages (structured sections) |
+| `overarching/<page>.json` | Individual overarching pages |
+| `pages.json` | Unified envelope for API use (offence + supplementary + overarching) |
 | `errors.json` | Any offences that failed to scrape |
 
 ### JSON structure
@@ -99,6 +112,46 @@ Each guideline in the JSON output looks like:
   "mitigating_factors": ["No previous convictions", "..."],
   "additional_steps": [],
   "raw_sections": {}
+}
+```
+
+### Unified pages.json structure
+
+Each item in `pages.json` uses a common envelope with a type-specific payload:
+
+```json
+{
+  "schema_version": 1,
+  "page_type": "offence",
+  "title": "Common assault",
+  "url": "https://www.sentencingcouncil.org.uk/...",
+  "court_type": "magistrates",
+  "source_tab": "Offences",
+  "category": "Assault offences",
+  "guideline": { "...": "offence-specific fields" },
+  "sections": []
+}
+```
+
+```json
+{
+  "schema_version": 1,
+  "page_type": "supplementary",
+  "title": "Ancillary orders",
+  "url": "https://www.sentencingcouncil.org.uk/supplementary-information/ancillary-orders/",
+  "court_type": "magistrates",
+  "source_tab": "Supplementary information",
+  "category": "Supplementary information",
+  "guideline": null,
+  "sections": [
+    {
+      "heading": "Eligibility",
+      "level": "h2",
+      "text": "...",
+      "bullets": ["..."],
+      "tables": [[["Col 1", "Col 2"], ["...","..."]]]
+    }
+  ]
 }
 ```
 
