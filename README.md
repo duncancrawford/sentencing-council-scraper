@@ -18,6 +18,22 @@ The scraper crawls the Sentencing Council's magistrates' court and Crown Court g
 
 Output is JSON (per offence + combined), plus a CSV summary of all sentencing ranges. Supplementary and overarching pages are exported separately, and a unified `pages.json` provides a consistent API-friendly envelope.
 
+## Static API via GitHub Pages
+
+This repo can publish the latest JSON outputs to GitHub Pages as a static “API”.
+The workflow runs the scraper and deploys the `data/` folder to the `gh-pages` branch.
+
+Once enabled, the files are available at:
+
+- `https://<org-or-user>.github.io/<repo>/pages.json`
+- `https://<org-or-user>.github.io/<repo>/guidelines.json`
+- `https://<org-or-user>.github.io/<repo>/supplementary.json`
+- `https://<org-or-user>.github.io/<repo>/overarching.json`
+
+To enable:
+1) Ensure GitHub Pages is set to deploy from the `gh-pages` branch.
+2) Run the workflow **Publish data to GitHub Pages** (manual trigger) or wait for the weekly schedule.
+
 ## Setup
 
 ```bash
