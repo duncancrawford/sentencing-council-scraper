@@ -57,6 +57,41 @@ class Guideline:
     # Additional data that may vary by offence
     additional_steps: list[dict] = field(default_factory=list)
     raw_sections: dict = field(default_factory=dict)
+    category: str = ""
+    source_tab: str = "Offences"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+
+
+@dataclass
+class SupplementarySection:
+    """A section within a supplementary information page."""
+
+    heading: str
+    level: str  # e.g. "h2", "h3"
+    text: str
+    bullets: list[str] = field(default_factory=list)
+    tables: list[list[list[str]]] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class SupplementaryPage:
+    """A supplementary information page with structured sections."""
+
+    page_title: str
+    url: str
+    court_type: str
+    sections: list[SupplementarySection] = field(default_factory=list)
+    page_type: str = "supplementary"
+    source_tab: str = ""
+    category: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -73,3 +108,4 @@ class OffenceLink:
     url: str
     court_type: str
     category: str = ""  # e.g. "Assault", "Theft", "Drug offences"
+    source_tab: str = ""  # e.g. "Offences", "Overarching guidelines"

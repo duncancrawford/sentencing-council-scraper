@@ -5,16 +5,16 @@ import csv
 import os
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence, Any
 
-from .models import Guideline
+from .models import Guideline, SupplementaryPage
 from .config import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 
 
 def export_json(
-    guidelines: list[Guideline],
+    guidelines: Sequence[Any],
     output_path: Optional[str] = None,
     pretty: bool = True,
 ) -> str:
@@ -22,7 +22,12 @@ def export_json(
     path = output_path or os.path.join(OUTPUT_DIR, "guidelines.json")
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 
-    data = [g.to_dict() for g in guidelines]
+    data = []
+    for g in guidelines:
+        if hasattr(g, "to_dict"):
+            data.append(g.to_dict())
+        else:
+            data.append(g)
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2 if pretty else None, ensure_ascii=False)
@@ -32,7 +37,7 @@ def export_json(
 
 
 def export_individual_json(
-    guidelines: list[Guideline],
+    guidelines: Sequence[Any],
     output_dir: Optional[str] = None,
 ) -> list[str]:
     """Export each guideline as a separate JSON file."""
@@ -41,12 +46,18 @@ def export_individual_json(
 
     paths = []
     for guideline in guidelines:
-        # Create a safe filename from the offence name
-        safe_name = _safe_filename(guideline.offence_name)
+        # Create a safe filename from a usable title
+        name = getattr(guideline, "offence_name", None) or getattr(
+            guideline, "page_title", None
+        ) or "unknown"
+        safe_name = _safe_filename(name)
         path = os.path.join(directory, f"{safe_name}.json")
 
         with open(path, "w", encoding="utf-8") as f:
-            f.write(guideline.to_json())
+            if hasattr(guideline, "to_json"):
+                f.write(guideline.to_json())
+            else:
+                json.dump(guideline, f, indent=2, ensure_ascii=False)
 
         paths.append(path)
 

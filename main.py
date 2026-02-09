@@ -26,6 +26,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
 from scraper.crawler import SentencingCrawler
 from scraper.parser import GuidelineParser
+from scraper.supplementary_parser import SupplementaryParser
 from scraper.models import Guideline
 from scraper.export import (
     export_json,
@@ -47,10 +48,13 @@ def setup_logging(verbose: bool = False):
     )
 
 
-def scrape_single_url(url: str, court_type: str = "") -> Guideline:
-    """Scrape a single guideline page."""
+def scrape_single_url(url: str, court_type: str = ""):
+    """Scrape a single guideline or supplementary page."""
     crawler = SentencingCrawler()
     soup = crawler.get_soup(url)
+    if "/supplementary-information/" in url:
+        parser = SupplementaryParser(soup, url, court_type)
+        return parser.parse()
     parser = GuidelineParser(soup, url, court_type)
     return parser.parse()
 
@@ -61,6 +65,7 @@ def scrape_all(
     list_only: bool = False,
     delay: float = 1.0,
     limit: int = 0,
+    tab_filter: str = "offences",
 ) -> list[Guideline]:
     """Scrape all guidelines from the Sentencing Council website."""
     crawler = SentencingCrawler(delay=delay)
@@ -91,26 +96,47 @@ def scrape_all(
         console.print("Try running with --url to scrape a specific guideline page.")
         return []
 
+    if tab_filter and tab_filter != "all":
+        label_map = {
+            "offences": "Offences",
+            "overarching": "Overarching guidelines",
+            "supplementary": "Supplementary information",
+        }
+        target = label_map.get(tab_filter)
+        offences = [o for o in offences if (o.source_tab or "Offences") == target]
+    if limit and limit > 0:
+        offences = offences[:limit]
+        console.print(f"[yellow]Limiting to first {len(offences)} offences.[/]")
+
+    # Summary by tab source
+    tab_counts = {}
+    for o in offences:
+        key = o.source_tab or "Offences"
+        tab_counts[key] = tab_counts.get(key, 0) + 1
+    if tab_counts:
+        console.print("\n[bold]Tab counts:[/]")
+        for name, count in sorted(tab_counts.items(), key=lambda x: (-x[1], x[0])):
+            console.print(f"  {name}: {count}")
+
     # Display discovered offences
     table = Table(title=f"Discovered {len(offences)} Offences")
     table.add_column("Offence", style="cyan")
     table.add_column("Court", style="green")
     table.add_column("Category", style="yellow")
+    table.add_column("Tab", style="magenta")
     for o in offences:
-        table.add_row(o.name, o.court_type, o.category)
+        table.add_row(o.name, o.court_type, o.category, o.source_tab or "Offences")
     console.print(table)
 
     if list_only:
         return []
 
-    if limit and limit > 0:
-        offences = offences[:limit]
-        console.print(f"[yellow]Limiting to first {len(offences)} offences.[/]")
-
     # Step 2: Scrape each guideline page
     console.print(f"\n[bold blue]Step 2:[/] Scraping {len(offences)} guideline pages...\n")
 
     guidelines = []
+    supplementary_pages = []
+    overarching_pages = []
     errors = []
 
     with Progress(
@@ -126,9 +152,33 @@ def scrape_all(
             try:
                 progress.update(task, description=f"Scraping: {offence.name[:50]}")
                 soup = crawler.get_soup(offence.url)
-                parser = GuidelineParser(soup, offence.url, offence.court_type)
-                guideline = parser.parse()
-                guidelines.append(guideline)
+                if offence.source_tab in ("Supplementary information", "Overarching guidelines"):
+                    parser = SupplementaryParser(soup, offence.url, offence.court_type)
+                    page_type = "supplementary" if offence.source_tab == "Supplementary information" else "overarching"
+                    page = parser.parse(
+                        page_type=page_type,
+                        source_tab=offence.source_tab,
+                        category=offence.category,
+                    )
+                    if page_type == "supplementary":
+                        supplementary_pages.append(page)
+                    else:
+                        overarching_pages.append(page)
+                elif "/supplementary-information/" in offence.url:
+                    parser = SupplementaryParser(soup, offence.url, offence.court_type)
+                    supplementary_pages.append(
+                        parser.parse(
+                            page_type="supplementary",
+                            source_tab=offence.source_tab or "Supplementary information",
+                            category=offence.category,
+                        )
+                    )
+                else:
+                    parser = GuidelineParser(soup, offence.url, offence.court_type)
+                    guideline = parser.parse()
+                    guideline.category = offence.category
+                    guideline.source_tab = offence.source_tab or "Offences"
+                    guidelines.append(guideline)
             except Exception as e:
                 errors.append({"offence": offence.name, "url": offence.url, "error": str(e)})
                 logging.getLogger(__name__).warning(f"Failed to scrape {offence.name}: {e}")
@@ -152,11 +202,49 @@ def scrape_all(
     export_individual_json(guidelines, f"{output_dir}/guidelines")
     export_csv_summary(guidelines, f"{output_dir}/sentencing_ranges.csv")
     export_offence_index(guidelines, f"{output_dir}/offence_index.json")
+    if supplementary_pages:
+        export_json(supplementary_pages, f"{output_dir}/supplementary.json")
+        export_individual_json(supplementary_pages, f"{output_dir}/supplementary")
+    if overarching_pages:
+        export_json(overarching_pages, f"{output_dir}/overarching.json")
+        export_individual_json(overarching_pages, f"{output_dir}/overarching")
+
+    # Unified envelope for API use
+    pages = []
+    for g in guidelines:
+        pages.append({
+            "schema_version": 1,
+            "page_type": "offence",
+            "title": g.offence_name,
+            "url": g.url,
+            "court_type": g.court_type,
+            "source_tab": g.source_tab or "Offences",
+            "category": g.category,
+            "guideline": g.to_dict(),
+            "sections": [],
+        })
+    for page in supplementary_pages + overarching_pages:
+        pages.append({
+            "schema_version": 1,
+            "page_type": page.page_type,
+            "title": page.page_title,
+            "url": page.url,
+            "court_type": page.court_type,
+            "source_tab": page.source_tab,
+            "category": page.category,
+            "guideline": None,
+            "sections": [s.to_dict() if hasattr(s, "to_dict") else s for s in page.sections],
+        })
+    export_json(pages, f"{output_dir}/pages.json")
 
     # Summary
     console.print(f"\n[bold green]Done![/]")
     console.print(f"  Successfully scraped: {len(guidelines)} guidelines")
-    console.print(f"  Failed: {len(errors)} guidelines")
+    if supplementary_pages:
+        console.print(f"  Supplementary pages: {len(supplementary_pages)}")
+    if overarching_pages:
+        console.print(f"  Overarching pages: {len(overarching_pages)}")
+    console.print(f"  Failed: {len(errors)} pages")
     console.print(f"  Output directory: {output_dir}/")
 
     if errors:
@@ -200,6 +288,12 @@ def main():
         help="Limit number of offences to process (0 = no limit)",
     )
     parser.add_argument(
+        "--tab",
+        choices=["offences", "overarching", "supplementary", "all"],
+        default="offences",
+        help="Filter by tab type when limiting (default: offences)",
+    )
+    parser.add_argument(
         "--output",
         default=OUTPUT_DIR,
         help=f"Output directory (default: {OUTPUT_DIR})",
@@ -233,10 +327,16 @@ def main():
             f.write(guideline.to_json())
 
         console.print(f"\n[green]Saved to {output_path}[/]")
-        console.print(f"  Offence: {guideline.offence_name}")
-        console.print(f"  Sentencing ranges: {len(guideline.sentencing_ranges)}")
-        console.print(f"  Aggravating factors: {len(guideline.aggravating_factors)}")
-        console.print(f"  Mitigating factors: {len(guideline.mitigating_factors)}")
+        if hasattr(guideline, "offence_name"):
+            console.print(f"  Offence: {guideline.offence_name}")
+            console.print(f"  Sentencing ranges: {len(guideline.sentencing_ranges)}")
+            console.print(f"  Aggravating factors: {len(guideline.aggravating_factors)}")
+            console.print(f"  Mitigating factors: {len(guideline.mitigating_factors)}")
+        else:
+            title = getattr(guideline, "page_title", "Supplementary information")
+            sections = getattr(guideline, "sections", [])
+            console.print(f"  Page: {title}")
+            console.print(f"  Sections: {len(sections)}")
     else:
         # Full scrape mode
         court_filter = "" if args.court == "all" else args.court
@@ -246,6 +346,7 @@ def main():
             list_only=args.list_only,
             delay=args.delay,
             limit=args.limit,
+            tab_filter=args.tab,
         )
 
 
