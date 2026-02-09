@@ -73,3 +73,4 @@ class OffenceLink:
     url: str
     court_type: str
     category: str = ""  # e.g. "Assault", "Theft", "Drug offences"
+    source_tab: str = ""  # e.g. "Offences", "Overarching guidelines"

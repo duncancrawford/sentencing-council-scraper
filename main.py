@@ -91,21 +91,32 @@ def scrape_all(
         console.print("Try running with --url to scrape a specific guideline page.")
         return []
 
+    if limit and limit > 0:
+        offences = offences[:limit]
+        console.print(f"[yellow]Limiting to first {len(offences)} offences.[/]")
+
+    # Summary by tab source
+    tab_counts = {}
+    for o in offences:
+        key = o.source_tab or "Offences"
+        tab_counts[key] = tab_counts.get(key, 0) + 1
+    if tab_counts:
+        console.print("\n[bold]Tab counts:[/]")
+        for name, count in sorted(tab_counts.items(), key=lambda x: (-x[1], x[0])):
+            console.print(f"  {name}: {count}")
+
     # Display discovered offences
     table = Table(title=f"Discovered {len(offences)} Offences")
     table.add_column("Offence", style="cyan")
     table.add_column("Court", style="green")
     table.add_column("Category", style="yellow")
+    table.add_column("Tab", style="magenta")
     for o in offences:
-        table.add_row(o.name, o.court_type, o.category)
+        table.add_row(o.name, o.court_type, o.category, o.source_tab or "Offences")
     console.print(table)
 
     if list_only:
         return []
-
-    if limit and limit > 0:
-        offences = offences[:limit]
-        console.print(f"[yellow]Limiting to first {len(offences)} offences.[/]")
 
     # Step 2: Scrape each guideline page
     console.print(f"\n[bold blue]Step 2:[/] Scraping {len(offences)} guideline pages...\n")

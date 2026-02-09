@@ -25,6 +25,7 @@ from .config import (
     RETRY_BACKOFF,
 )
 from .models import OffenceLink
+from .index_tabs import extract_tab_links
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +238,7 @@ class SentencingCrawler:
                     url=full_url,
                     court_type=inferred,
                     category="",
+                    source_tab="Offences",
                 )
             )
 
@@ -344,25 +346,14 @@ class SentencingCrawler:
                 url=full_url,
                 court_type=item_court or court_type,
                 category=category,
+                source_tab="Offences",
             )
             links.append(offence)
 
-        # Secondary: also grab overarching guidelines from tab-panel-1
-        panel_1 = soup.find(id="tab-panel-1")
-        if panel_1:
-            for a_tag in panel_1.find_all("a", href=True):
-                href = a_tag["href"]
-                full_url = urljoin(url, href)
-                name = a_tag.get_text(strip=True)
-                if name and "/guidelines/" in href:
-                    offence = OffenceLink(
-                        name=name,
-                        url=full_url,
-                        court_type=court_type,
-                        category="Overarching guidelines",
-                    )
-                    if not any(l.url == offence.url for l in links):
-                        links.append(offence)
+        # Secondary: also grab links from other tabs (overarching + supplementary)
+        for link in extract_tab_links(soup, url, court_type):
+            if not any(l.url == link.url for l in links):
+                links.append(link)
 
         # Fallback: legacy A–Z offence list in HTML
         if not links:
