@@ -57,6 +57,8 @@ class Guideline:
     # Additional data that may vary by offence
     additional_steps: list[dict] = field(default_factory=list)
     raw_sections: dict = field(default_factory=dict)
+    category: str = ""
+    source_tab: str = "Offences"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -75,6 +77,9 @@ class SupplementarySection:
     bullets: list[str] = field(default_factory=list)
     tables: list[list[list[str]]] = field(default_factory=list)
 
+    def to_dict(self) -> dict:
+        return asdict(self)
+
 
 @dataclass
 class SupplementaryPage:
@@ -85,6 +90,8 @@ class SupplementaryPage:
     court_type: str
     sections: list[SupplementarySection] = field(default_factory=list)
     page_type: str = "supplementary"
+    source_tab: str = ""
+    category: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)

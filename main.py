@@ -65,6 +65,7 @@ def scrape_all(
     list_only: bool = False,
     delay: float = 1.0,
     limit: int = 0,
+    tab_filter: str = "offences",
 ) -> list[Guideline]:
     """Scrape all guidelines from the Sentencing Council website."""
     crawler = SentencingCrawler(delay=delay)
@@ -95,6 +96,14 @@ def scrape_all(
         console.print("Try running with --url to scrape a specific guideline page.")
         return []
 
+    if tab_filter and tab_filter != "all":
+        label_map = {
+            "offences": "Offences",
+            "overarching": "Overarching guidelines",
+            "supplementary": "Supplementary information",
+        }
+        target = label_map.get(tab_filter)
+        offences = [o for o in offences if (o.source_tab or "Offences") == target]
     if limit and limit > 0:
         offences = offences[:limit]
         console.print(f"[yellow]Limiting to first {len(offences)} offences.[/]")
@@ -127,6 +136,7 @@ def scrape_all(
 
     guidelines = []
     supplementary_pages = []
+    overarching_pages = []
     errors = []
 
     with Progress(
@@ -142,12 +152,32 @@ def scrape_all(
             try:
                 progress.update(task, description=f"Scraping: {offence.name[:50]}")
                 soup = crawler.get_soup(offence.url)
-                if offence.source_tab == "Supplementary information" or "/supplementary-information/" in offence.url:
+                if offence.source_tab in ("Supplementary information", "Overarching guidelines"):
                     parser = SupplementaryParser(soup, offence.url, offence.court_type)
-                    supplementary_pages.append(parser.parse())
+                    page_type = "supplementary" if offence.source_tab == "Supplementary information" else "overarching"
+                    page = parser.parse(
+                        page_type=page_type,
+                        source_tab=offence.source_tab,
+                        category=offence.category,
+                    )
+                    if page_type == "supplementary":
+                        supplementary_pages.append(page)
+                    else:
+                        overarching_pages.append(page)
+                elif "/supplementary-information/" in offence.url:
+                    parser = SupplementaryParser(soup, offence.url, offence.court_type)
+                    supplementary_pages.append(
+                        parser.parse(
+                            page_type="supplementary",
+                            source_tab=offence.source_tab or "Supplementary information",
+                            category=offence.category,
+                        )
+                    )
                 else:
                     parser = GuidelineParser(soup, offence.url, offence.court_type)
                     guideline = parser.parse()
+                    guideline.category = offence.category
+                    guideline.source_tab = offence.source_tab or "Offences"
                     guidelines.append(guideline)
             except Exception as e:
                 errors.append({"offence": offence.name, "url": offence.url, "error": str(e)})
@@ -175,12 +205,45 @@ def scrape_all(
     if supplementary_pages:
         export_json(supplementary_pages, f"{output_dir}/supplementary.json")
         export_individual_json(supplementary_pages, f"{output_dir}/supplementary")
+    if overarching_pages:
+        export_json(overarching_pages, f"{output_dir}/overarching.json")
+        export_individual_json(overarching_pages, f"{output_dir}/overarching")
+
+    # Unified envelope for API use
+    pages = []
+    for g in guidelines:
+        pages.append({
+            "schema_version": 1,
+            "page_type": "offence",
+            "title": g.offence_name,
+            "url": g.url,
+            "court_type": g.court_type,
+            "source_tab": g.source_tab or "Offences",
+            "category": g.category,
+            "guideline": g.to_dict(),
+            "sections": [],
+        })
+    for page in supplementary_pages + overarching_pages:
+        pages.append({
+            "schema_version": 1,
+            "page_type": page.page_type,
+            "title": page.page_title,
+            "url": page.url,
+            "court_type": page.court_type,
+            "source_tab": page.source_tab,
+            "category": page.category,
+            "guideline": None,
+            "sections": [s.to_dict() if hasattr(s, "to_dict") else s for s in page.sections],
+        })
+    export_json(pages, f"{output_dir}/pages.json")
 
     # Summary
     console.print(f"\n[bold green]Done![/]")
     console.print(f"  Successfully scraped: {len(guidelines)} guidelines")
     if supplementary_pages:
         console.print(f"  Supplementary pages: {len(supplementary_pages)}")
+    if overarching_pages:
+        console.print(f"  Overarching pages: {len(overarching_pages)}")
     console.print(f"  Failed: {len(errors)} pages")
     console.print(f"  Output directory: {output_dir}/")
 
@@ -223,6 +286,12 @@ def main():
         type=int,
         default=0,
         help="Limit number of offences to process (0 = no limit)",
+    )
+    parser.add_argument(
+        "--tab",
+        choices=["offences", "overarching", "supplementary", "all"],
+        default="offences",
+        help="Filter by tab type when limiting (default: offences)",
     )
     parser.add_argument(
         "--output",
@@ -277,6 +346,7 @@ def main():
             list_only=args.list_only,
             delay=args.delay,
             limit=args.limit,
+            tab_filter=args.tab,
         )
 
 
