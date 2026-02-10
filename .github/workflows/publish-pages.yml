@@ -30,7 +30,7 @@ jobs:
         run: |
           python main.py --tab all
 
-      - name: Upload to Supabase Storage (S3)
+      - name: Upload JSON to Supabase Storage (S3)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SUPABASE_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -51,8 +51,17 @@ jobs:
             echo "Missing SUPABASE_ACCESS_KEY or SUPABASE_SECRET_KEY secrets."
             exit 1
           fi
-          DEST="s3://${SUPABASE_BUCKET}"
+          PREFIX=""
           if [ -n "${SUPABASE_PREFIX:-}" ]; then
-            DEST="${DEST}/${SUPABASE_PREFIX}"
+            PREFIX="${SUPABASE_PREFIX%/}/"
           fi
-          aws s3 sync data "${DEST}" --endpoint-url "${SUPABASE_S3_ENDPOINT}" --delete
+          aws s3 rm "s3://${SUPABASE_BUCKET}/${PREFIX}" --recursive --endpoint-url "${SUPABASE_S3_ENDPOINT}"
+          while IFS= read -r -d '' file; do
+            key="${file#data/}"
+            aws s3api put-object \
+              --bucket "${SUPABASE_BUCKET}" \
+              --key "${PREFIX}${key}" \
+              --body "${file}" \
+              --content-type "application/json" \
+              --endpoint-url "${SUPABASE_S3_ENDPOINT}"
+          done < <(find data -type f -name "*.json" -print0)
