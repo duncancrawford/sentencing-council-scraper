@@ -1,4 +1,4 @@
-name: Publish data to GitHub Pages
+name: Publish data to Supabase Storage
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     - cron: "0 3 * * 1" # Mondays at 03:00 UTC
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-and-deploy:
@@ -28,11 +28,31 @@ jobs:
 
       - name: Scrape data
         run: |
-          python main.py
-          touch data/.nojekyll
+          python main.py --tab all
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: data
+      - name: Upload to Supabase Storage (S3)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SUPABASE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.SUPABASE_REGION }}
+          SUPABASE_S3_ENDPOINT: ${{ secrets.SUPABASE_S3_ENDPOINT }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+          SUPABASE_PREFIX: ${{ secrets.SUPABASE_PREFIX }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AWS_DEFAULT_REGION}" ]; then
+            export AWS_DEFAULT_REGION="us-east-1"
+          fi
+          if [ -z "${SUPABASE_S3_ENDPOINT}" ] || [ -z "${SUPABASE_BUCKET}" ]; then
+            echo "Missing SUPABASE_S3_ENDPOINT or SUPABASE_BUCKET secrets."
+            exit 1
+          fi
+          if [ -z "${AWS_ACCESS_KEY_ID}" ] || [ -z "${AWS_SECRET_ACCESS_KEY}" ]; then
+            echo "Missing SUPABASE_ACCESS_KEY or SUPABASE_SECRET_KEY secrets."
+            exit 1
+          fi
+          DEST="s3://${SUPABASE_BUCKET}"
+          if [ -n "${SUPABASE_PREFIX:-}" ]; then
+            DEST="${DEST}/${SUPABASE_PREFIX}"
+          fi
+          aws s3 sync data "${DEST}" --endpoint-url "${SUPABASE_S3_ENDPOINT}" --delete
