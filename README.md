@@ -21,6 +21,7 @@ Output is JSON (per offence + combined), plus a CSV summary of all sentencing ra
 ## Publish to Supabase Storage
 
 The workflow **Publish data to Supabase Storage** runs the scraper and uploads the `data/` folder to a Supabase Storage bucket using the S3-compatible endpoint.
+Root-level aggregate JSON files are compressed to `.json.zip` before upload to avoid object size limits.
 
 Required GitHub secrets:
 
@@ -33,14 +34,16 @@ Required GitHub secrets:
 
 If the bucket is public, files are accessible at:
 
-- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/pages.json`
-- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/guidelines.json`
-- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/supplementary.json`
-- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/overarching.json`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/pages.json.zip`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/guidelines.json.zip`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/supplementary.json.zip`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/overarching.json.zip`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/offence_index.json.zip`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/guidelines/<offence>.json`
 
 To run it immediately, trigger the workflow manually in GitHub Actions.
 
-Note: the workflow uploads JSON files only. If you want CSVs too, allow `text/csv` in the bucket MIME type settings and add a CSV upload step.
+Note: nested page files are uploaded as JSON; root aggregate JSON files are uploaded as ZIP archives. CSVs are not uploaded.
 
 ## Setup
 

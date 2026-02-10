@@ -30,7 +30,7 @@ jobs:
         run: |
           python main.py --tab all
 
-      - name: Upload JSON to Supabase Storage (S3)
+      - name: Upload JSON and zipped aggregates to Supabase Storage (S3)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SUPABASE_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -51,6 +51,27 @@ jobs:
             echo "Missing SUPABASE_ACCESS_KEY or SUPABASE_SECRET_KEY secrets."
             exit 1
           fi
+          if ! command -v zip >/dev/null 2>&1; then
+            echo "zip command not found."
+            exit 1
+          fi
+
+          STAGING_DIR="$(mktemp -d)"
+          trap 'rm -rf "${STAGING_DIR}"' EXIT
+
+          # Keep nested JSON files as-is.
+          while IFS= read -r -d '' f; do
+            rel="${f#data/}"
+            mkdir -p "${STAGING_DIR}/$(dirname "${rel}")"
+            cp "${f}" "${STAGING_DIR}/${rel}"
+          done < <(find data -mindepth 2 -type f -name "*.json" -print0)
+
+          # Zip root-level JSON aggregates before upload.
+          while IFS= read -r -d '' f; do
+            b="$(basename "${f}")"
+            zip -j -q "${STAGING_DIR}/${b}.zip" "${f}"
+          done < <(find data -maxdepth 1 -type f -name "*.json" -print0)
+
           # Force multipart for larger JSONs (Supabase rejects single-part > ~50MB)
           aws configure set default.s3.multipart_threshold 8MB
           aws configure set default.s3.multipart_chunksize 8MB
@@ -58,8 +79,9 @@ jobs:
           if [ -n "${SUPABASE_PREFIX:-}" ]; then
             DEST="${DEST}/${SUPABASE_PREFIX}"
           fi
-          aws s3 sync data "${DEST}" \
+          aws s3 sync "${STAGING_DIR}" "${DEST}" \
             --exclude "*" \
             --include "*.json" \
+            --include "*.zip" \
             --endpoint-url "${SUPABASE_S3_ENDPOINT}" \
             --delete
