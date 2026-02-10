@@ -18,21 +18,27 @@ The scraper crawls the Sentencing Council's magistrates' court and Crown Court g
 
 Output is JSON (per offence + combined), plus a CSV summary of all sentencing ranges. Supplementary and overarching pages are exported separately, and a unified `pages.json` provides a consistent API-friendly envelope.
 
-## Static API via GitHub Pages
+## Publish to Supabase Storage
 
-This repo can publish the latest JSON outputs to GitHub Pages as a static “API”.
-The workflow runs the scraper and deploys the `data/` folder to the `gh-pages` branch.
+The workflow **Publish data to Supabase Storage** runs the scraper and uploads the `data/` folder to a Supabase Storage bucket using the S3-compatible endpoint.
 
-Once enabled, the files are available at:
+Required GitHub secrets:
 
-- `https://<org-or-user>.github.io/<repo>/pages.json`
-- `https://<org-or-user>.github.io/<repo>/guidelines.json`
-- `https://<org-or-user>.github.io/<repo>/supplementary.json`
-- `https://<org-or-user>.github.io/<repo>/overarching.json`
+- `SUPABASE_S3_ENDPOINT` (e.g. `https://<project-ref>.supabase.co/storage/v1/s3`)
+- `SUPABASE_ACCESS_KEY`
+- `SUPABASE_SECRET_KEY`
+- `SUPABASE_BUCKET`
+- `SUPABASE_PREFIX` (optional folder prefix inside the bucket)
+- `SUPABASE_REGION` (optional, defaults to `us-east-1`)
 
-To enable:
-1) Ensure GitHub Pages is set to deploy from the `gh-pages` branch.
-2) Run the workflow **Publish data to GitHub Pages** (manual trigger) or wait for the weekly schedule.
+If the bucket is public, files are accessible at:
+
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/pages.json`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/guidelines.json`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/supplementary.json`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/overarching.json`
+
+To run it immediately, trigger the workflow manually in GitHub Actions.
 
 ## Setup
 
