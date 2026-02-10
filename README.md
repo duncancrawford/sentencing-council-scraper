@@ -40,6 +40,8 @@ If the bucket is public, files are accessible at:
 
 To run it immediately, trigger the workflow manually in GitHub Actions.
 
+Note: the workflow uploads JSON files only. If you want CSVs too, allow `text/csv` in the bucket MIME type settings and add a CSV upload step.
+
 ## Setup
 
 ```bash
