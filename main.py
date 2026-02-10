@@ -255,7 +255,7 @@ def scrape_all(
         # Save errors for debugging
         errors_path = f"{output_dir}/errors.json"
         with open(errors_path, "w") as f:
-            json.dump(errors, f, indent=2)
+            json.dump(errors, f, separators=(",", ":"))
 
     return guidelines
 
