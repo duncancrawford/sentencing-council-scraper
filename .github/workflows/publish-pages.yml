@@ -51,6 +51,8 @@ jobs:
             echo "Missing SUPABASE_ACCESS_KEY or SUPABASE_SECRET_KEY secrets."
             exit 1
           fi
+          aws configure set default.s3.multipart_threshold 256MB
+          aws configure set default.s3.multipart_chunksize 256MB
           DEST="s3://${SUPABASE_BUCKET}"
           if [ -n "${SUPABASE_PREFIX:-}" ]; then
             DEST="${DEST}/${SUPABASE_PREFIX}"
