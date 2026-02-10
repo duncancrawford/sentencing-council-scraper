@@ -51,17 +51,12 @@ jobs:
             echo "Missing SUPABASE_ACCESS_KEY or SUPABASE_SECRET_KEY secrets."
             exit 1
           fi
-          PREFIX=""
+          DEST="s3://${SUPABASE_BUCKET}"
           if [ -n "${SUPABASE_PREFIX:-}" ]; then
-            PREFIX="${SUPABASE_PREFIX%/}/"
+            DEST="${DEST}/${SUPABASE_PREFIX}"
           fi
-          aws s3 rm "s3://${SUPABASE_BUCKET}/${PREFIX}" --recursive --endpoint-url "${SUPABASE_S3_ENDPOINT}"
-          while IFS= read -r -d '' file; do
-            key="${file#data/}"
-            aws s3api put-object \
-              --bucket "${SUPABASE_BUCKET}" \
-              --key "${PREFIX}${key}" \
-              --body "${file}" \
-              --content-type "application/json" \
-              --endpoint-url "${SUPABASE_S3_ENDPOINT}"
-          done < <(find data -type f -name "*.json" -print0)
+          aws s3 sync data "${DEST}" \
+            --exclude "*" \
+            --include "*.json" \
+            --endpoint-url "${SUPABASE_S3_ENDPOINT}" \
+            --delete
