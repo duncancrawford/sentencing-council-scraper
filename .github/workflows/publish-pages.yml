@@ -57,6 +57,7 @@ jobs:
           fi
 
           STAGING_DIR="$(mktemp -d)"
+          export STAGING_DIR
           trap 'rm -rf "${STAGING_DIR}"' EXIT
 
           # Keep nested JSON files as-is.
@@ -71,6 +72,42 @@ jobs:
             b="$(basename "${f}")"
             zip -j -q "${STAGING_DIR}/${b}.zip" "${f}"
           done < <(find data -maxdepth 1 -type f -name "*.json" -print0)
+
+          # Build a manifest for consumers to discover available objects.
+          python - <<'PY'
+          import datetime as dt
+          import hashlib
+          import json
+          import os
+
+          staging_dir = os.environ["STAGING_DIR"]
+          entries = []
+
+          for root, _, files in os.walk(staging_dir):
+              for filename in files:
+                  rel = os.path.relpath(os.path.join(root, filename), staging_dir).replace(os.sep, "/")
+                  full_path = os.path.join(staging_dir, rel)
+                  hasher = hashlib.sha256()
+                  with open(full_path, "rb") as f:
+                      for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                          hasher.update(chunk)
+                  entries.append({
+                      "key": rel,
+                      "size_bytes": os.path.getsize(full_path),
+                      "sha256": hasher.hexdigest(),
+                  })
+
+          entries.sort(key=lambda item: item["key"])
+          manifest = {
+              "schema_version": 1,
+              "generated_at_utc": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "file_count": len(entries),
+              "files": entries,
+          }
+
+          with open(os.path.join(staging_dir, "manifest.json"), "w", encoding="utf-8") as f:
+              json.dump(manifest, f, ensure_ascii=True, separators=(",", ":"))
+          PY
 
           # Force multipart for larger JSONs (Supabase rejects single-part > ~50MB)
           aws configure set default.s3.multipart_threshold 8MB

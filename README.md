@@ -39,11 +39,12 @@ If the bucket is public, files are accessible at:
 - `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/supplementary.json.zip`
 - `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/overarching.json.zip`
 - `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/offence_index.json.zip`
+- `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/manifest.json`
 - `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<prefix>/guidelines/<offence>.json`
 
 To run it immediately, trigger the workflow manually in GitHub Actions.
 
-Note: nested page files are uploaded as JSON; root aggregate JSON files are uploaded as ZIP archives. CSVs are not uploaded.
+Note: nested page files are uploaded as JSON; root aggregate JSON files are uploaded as ZIP archives. `manifest.json` is uploaded at the root and lists all published object keys, sizes, and SHA-256 hashes. CSVs are not uploaded.
 
 ## Setup
 
