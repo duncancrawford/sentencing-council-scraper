@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def export_json(
     guidelines: Sequence[Any],
     output_path: Optional[str] = None,
-    pretty: bool = True,
+    pretty: bool = False,
 ) -> str:
     """Export all guidelines to a single JSON file."""
     path = output_path or os.path.join(OUTPUT_DIR, "guidelines.json")
@@ -30,7 +30,10 @@ def export_json(
             data.append(g)
 
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2 if pretty else None, ensure_ascii=False)
+        if pretty:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        else:
+            json.dump(data, f, separators=(",", ":"), ensure_ascii=False)
 
     logger.info(f"Exported {len(guidelines)} guidelines to {path}")
     return path
@@ -57,7 +60,7 @@ def export_individual_json(
             if hasattr(guideline, "to_json"):
                 f.write(guideline.to_json())
             else:
-                json.dump(guideline, f, indent=2, ensure_ascii=False)
+                json.dump(guideline, f, separators=(",", ":"), ensure_ascii=False)
 
         paths.append(path)
 
@@ -122,7 +125,7 @@ def export_offence_index(
         })
 
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(index, f, indent=2, ensure_ascii=False)
+        json.dump(index, f, separators=(",", ":"), ensure_ascii=False)
 
     logger.info(f"Exported offence index to {path}")
     return path

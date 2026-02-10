@@ -63,7 +63,13 @@ class Guideline:
     def to_dict(self) -> dict:
         return asdict(self)
 
-    def to_json(self, indent: int = 2) -> str:
+    def to_json(self, indent: int | None = None) -> str:
+        if indent is None:
+            return json.dumps(
+                self.to_dict(),
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
 
@@ -96,7 +102,13 @@ class SupplementaryPage:
     def to_dict(self) -> dict:
         return asdict(self)
 
-    def to_json(self, indent: int = 2) -> str:
+    def to_json(self, indent: int | None = None) -> str:
+        if indent is None:
+            return json.dumps(
+                self.to_dict(),
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
 
