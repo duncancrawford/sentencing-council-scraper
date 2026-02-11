@@ -80,6 +80,17 @@ def extract_slug_from_url(url: str | None) -> str:
     return normalize_slug(candidate)
 
 
+def canonicalize_url(url: str | None) -> str:
+    """Normalize URL for stable dedupe/IDs by removing query and fragment."""
+    if not url:
+        return ""
+    parsed = urlparse(normalize_space(url))
+    if not parsed.scheme or not parsed.netloc:
+        return normalize_space(url)
+    path = parsed.path.rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
+
+
 def normalize_slug(value: str) -> str:
     text = normalize_space(value).lower()
     text = text.replace("_", "-")

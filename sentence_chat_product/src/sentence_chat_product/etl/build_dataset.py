@@ -40,6 +40,7 @@ except ImportError:  # pragma: no cover - fallback for minimal environments
     process = _FallbackProcess()
 
 from .utils import (
+    canonicalize_url,
     chunk_text,
     estimate_tokens,
     extract_slug_from_url,
@@ -113,7 +114,7 @@ def cleaned_legislation(text: str) -> str:
 
 
 def guideline_doc_from_offence_guideline(item: dict[str, Any]) -> dict[str, Any]:
-    url = normalize_space(item.get("url", ""))
+    url = canonicalize_url(item.get("url", ""))
     slug = extract_slug_from_url(url) or normalize_slug(item.get("offence_name", ""))
     guideline_id = stable_uuid("guideline", url or slug)
     return {
@@ -132,7 +133,7 @@ def guideline_doc_from_offence_guideline(item: dict[str, Any]) -> dict[str, Any]
 
 
 def guideline_doc_from_page(item: dict[str, Any]) -> dict[str, Any]:
-    url = normalize_space(item.get("url", ""))
+    url = canonicalize_url(item.get("url", ""))
     slug = extract_slug_from_url(url) or normalize_slug(item.get("title", ""))
     guideline_id = stable_uuid("guideline", url or slug)
     return {
@@ -154,12 +155,12 @@ def load_guideline_documents(
     scraped_guidelines: list[dict[str, Any]],
     pages: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]]:
-    docs_by_url: dict[str, dict[str, Any]] = {}
+    docs_by_key: dict[str, dict[str, Any]] = {}
 
     for row in scraped_guidelines:
         doc = guideline_doc_from_offence_guideline(row)
-        key = doc["url"] or doc["guideline_id"]
-        docs_by_url[key] = doc
+        key = doc["url"] or doc["slug"] or doc["guideline_id"]
+        docs_by_key[key] = doc
 
     if pages:
         for page in pages:
@@ -167,12 +168,12 @@ def load_guideline_documents(
             if page_type == "offence":
                 continue
             doc = guideline_doc_from_page(page)
-            key = doc["url"] or doc["guideline_id"]
-            if key in docs_by_url:
+            key = doc["url"] or doc["slug"] or doc["guideline_id"]
+            if key in docs_by_key:
                 continue
-            docs_by_url[key] = doc
+            docs_by_key[key] = doc
 
-    return list(docs_by_url.values())
+    return list(docs_by_key.values())
 
 
 def select_guideline_candidate(
