@@ -1,0 +1,789 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sentence Chat Product API (Supabase Edge)",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "https://noiflgrvjybdrxhjyebd.supabase.co/functions/v1",
+      "description": "Supabase Edge Functions"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Health Health Get",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "title": "Status"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/calculate-sentence": {
+      "post": {
+        "summary": "Calculate Sentence Endpoint",
+        "operationId": "calculate_sentence_endpoint_calculate_sentence_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalculateSentenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalculateSentenceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search-guidelines": {
+      "post": {
+        "summary": "Search Guidelines Endpoint",
+        "operationId": "search_guidelines_endpoint_search_guidelines_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchGuidelinesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchGuidelinesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat-turn": {
+      "post": {
+        "summary": "Chat Turn Endpoint",
+        "operationId": "chat_turn_endpoint_chat_turn_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatTurnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatTurnResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CalculateSentenceRequest": {
+        "properties": {
+          "offence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offence Id"
+          },
+          "offence_query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offence Query"
+          },
+          "offence_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Offence Date"
+          },
+          "conviction_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Conviction Date"
+          },
+          "sentence_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Sentence Date"
+          },
+          "age_at_offence": {
+            "type": "integer",
+            "maximum": 120,
+            "minimum": 10,
+            "title": "Age At Offence"
+          },
+          "age_at_conviction": {
+            "type": "integer",
+            "maximum": 120,
+            "minimum": 10,
+            "title": "Age At Conviction"
+          },
+          "age_at_sentence": {
+            "type": "integer",
+            "maximum": 120,
+            "minimum": 10,
+            "title": "Age At Sentence"
+          },
+          "plea_stage": {
+            "type": "string",
+            "enum": [
+              "first_stage",
+              "after_first_stage_before_trial",
+              "day_of_trial",
+              "after_trial_begins",
+              "not_guilty"
+            ],
+            "title": "Plea Stage"
+          },
+          "sentence_type": {
+            "type": "string",
+            "enum": [
+              "conditional_discharge",
+              "fine",
+              "community_order",
+              "youth_rehabilitation_order",
+              "determinate_custodial_sentence",
+              "suspended_sentence_order",
+              "dto",
+              "yoi_detention",
+              "extended_sentence",
+              "special_custodial_sentence",
+              "discretionary_life_sentence",
+              "mandatory_life_sentence"
+            ],
+            "title": "Sentence Type"
+          },
+          "culpability": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culpability"
+          },
+          "harm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Harm"
+          },
+          "pre_plea_term_months": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pre Plea Term Months"
+          },
+          "extension_months": {
+            "type": "number",
+            "minimum": 0,
+            "title": "Extension Months",
+            "default": 0
+          },
+          "fine_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fine Amount"
+          },
+          "dangerousness_assessed": {
+            "type": "boolean",
+            "title": "Dangerousness Assessed",
+            "default": false
+          },
+          "prior_listed_offence_with_custody": {
+            "type": "boolean",
+            "title": "Prior Listed Offence With Custody",
+            "default": false
+          },
+          "prior_domestic_burglary_count": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Prior Domestic Burglary Count",
+            "default": 0
+          },
+          "prior_class_a_trafficking_count": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Prior Class A Trafficking Count",
+            "default": 0
+          },
+          "prior_relevant_weapon_conviction": {
+            "type": "boolean",
+            "title": "Prior Relevant Weapon Conviction",
+            "default": false
+          },
+          "terrorism_flag": {
+            "type": "boolean",
+            "title": "Terrorism Flag",
+            "default": false
+          },
+          "minimum_sentence_unjust_or_exceptional": {
+            "type": "boolean",
+            "title": "Minimum Sentence Unjust Or Exceptional",
+            "default": false
+          },
+          "replicate_ace_release_bug": {
+            "type": "boolean",
+            "title": "Replicate Ace Release Bug",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "offence_date",
+          "conviction_date",
+          "sentence_date",
+          "age_at_offence",
+          "age_at_conviction",
+          "age_at_sentence",
+          "plea_stage",
+          "sentence_type"
+        ],
+        "title": "CalculateSentenceRequest"
+      },
+      "CalculateSentenceResponse": {
+        "properties": {
+          "offence_id": {
+            "type": "string",
+            "title": "Offence Id"
+          },
+          "offence_name": {
+            "type": "string",
+            "title": "Offence Name"
+          },
+          "sentence_type": {
+            "type": "string",
+            "title": "Sentence Type"
+          },
+          "pre_plea_term_months": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pre Plea Term Months"
+          },
+          "post_plea_term_months": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Plea Term Months"
+          },
+          "minimum_sentence_triggered": {
+            "type": "boolean",
+            "title": "Minimum Sentence Triggered"
+          },
+          "minimum_floor_pre_plea_months": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Floor Pre Plea Months"
+          },
+          "minimum_floor_post_plea_months": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Floor Post Plea Months"
+          },
+          "release_fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Fraction"
+          },
+          "estimated_time_in_custody_months": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Time In Custody Months"
+          },
+          "victim_surcharge_gbp": {
+            "type": "number",
+            "title": "Victim Surcharge Gbp"
+          },
+          "matched_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentencingRangeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "trace": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Trace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "offence_id",
+          "offence_name",
+          "sentence_type",
+          "pre_plea_term_months",
+          "post_plea_term_months",
+          "minimum_sentence_triggered",
+          "minimum_floor_pre_plea_months",
+          "minimum_floor_post_plea_months",
+          "release_fraction",
+          "estimated_time_in_custody_months",
+          "victim_surcharge_gbp",
+          "warnings",
+          "trace"
+        ],
+        "title": "CalculateSentenceResponse"
+      },
+      "ChatTurnRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "offence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offence Id"
+          },
+          "offence_query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offence Query"
+          },
+          "calculation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalculateSentenceRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Top K",
+            "default": 5
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ChatTurnRequest"
+      },
+      "ChatTurnResponse": {
+        "properties": {
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "calculation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalculateSentenceResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/GuidelineChunkOut"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "follow_up_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Follow Up Questions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reply"
+        ],
+        "title": "ChatTurnResponse"
+      },
+      "GuidelineChunkOut": {
+        "properties": {
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "guideline_id": {
+            "type": "string",
+            "title": "Guideline Id"
+          },
+          "offence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offence Id"
+          },
+          "section_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Type"
+          },
+          "section_heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Heading"
+          },
+          "chunk_text": {
+            "type": "string",
+            "title": "Chunk Text"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "guideline_id",
+          "offence_id",
+          "section_type",
+          "section_heading",
+          "chunk_text",
+          "source_url"
+        ],
+        "title": "GuidelineChunkOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "SearchGuidelinesRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "offence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offence Id"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Top K",
+            "default": 6
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchGuidelinesRequest"
+      },
+      "SearchGuidelinesResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/GuidelineChunkOut"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "title": "SearchGuidelinesResponse"
+      },
+      "SentencingRangeOut": {
+        "properties": {
+          "culpability": {
+            "type": "string",
+            "title": "Culpability"
+          },
+          "harm": {
+            "type": "string",
+            "title": "Harm"
+          },
+          "starting_point_text": {
+            "type": "string",
+            "title": "Starting Point Text"
+          },
+          "category_range_text": {
+            "type": "string",
+            "title": "Category Range Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "culpability",
+          "harm",
+          "starting_point_text",
+          "category_range_text"
+        ],
+        "title": "SentencingRangeOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
